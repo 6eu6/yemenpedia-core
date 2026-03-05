@@ -1,11 +1,12 @@
 /**
- * Backup Utility for R2 Media
+ * Backup Utility for R2 Media - SECURED
  * 
- * Hidden admin route to sync all R2 media to local /backups folder
+ * Security Measures:
+ * 1. Requires ADMIN_BACKUP_KEY from environment (no fallback)
+ * 2. OR authenticated as admin user
+ * 
  * GET /api/admin/backup/media - List all media
  * POST /api/admin/backup/media - Start backup
- * 
- * Security: Should be protected by admin authentication
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -13,8 +14,8 @@ import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/clien
 import { writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
+import { getAuthUser, isAdmin } from '@/lib/session'
 
-// R2 Client
 const getR2Client = () => {
   return new S3Client({
     region: 'auto',
@@ -26,22 +27,44 @@ const getR2Client = () => {
   })
 }
 
+/**
+ * Verify authorization - either via API key or session
+ */
+async function verifyAuth(request: NextRequest): Promise<{ authorized: boolean; error?: string }> {
+  // Option 1: Check for API key (for automated backups)
+  const authHeader = request.headers.get('authorization')
+  const backupKey = process.env.ADMIN_BACKUP_KEY
+  
+  if (backupKey && authHeader === `Bearer ${backupKey}`) {
+    return { authorized: true }
+  }
+  
+  // Option 2: Check for authenticated admin session
+  const auth = await getAuthUser(request)
+  if (auth.success && isAdmin(auth.user.role)) {
+    return { authorized: true }
+  }
+  
+  return { 
+    authorized: false, 
+    error: 'Unauthorized. Provide valid Authorization header or admin session.' 
+  }
+}
+
 // ============================================
 // List All Media
 // ============================================
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify admin access (TODO: Add proper authentication)
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader || authHeader !== `Bearer ${process.env.ADMIN_BACKUP_KEY || 'backup-key'}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authCheck = await verifyAuth(request)
+    if (!authCheck.authorized) {
+      return NextResponse.json({ error: authCheck.error }, { status: 401 })
     }
 
     const client = getR2Client()
     const bucketName = process.env.R2_BUCKET_NAME || 'yemenpedia-media'
 
-    // List all objects in R2
     let allObjects: Array<{
       key: string
       size: number
@@ -74,7 +97,6 @@ export async function GET(request: NextRequest) {
       continuationToken = response.NextContinuationToken
     } while (continuationToken)
 
-    // Calculate stats
     const totalSize = allObjects.reduce((sum, obj) => sum + obj.size, 0)
     const images = allObjects.filter((obj) => obj.key.startsWith('images/'))
     const videos = allObjects.filter((obj) => obj.key.startsWith('videos/'))
@@ -94,10 +116,9 @@ export async function GET(request: NextRequest) {
           documents: documents.length,
         },
       },
-      files: allObjects.slice(0, 100), // First 100 files
+      files: allObjects.slice(0, 100),
     })
   } catch (error) {
-    console.error('Backup list error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to list media' },
       { status: 500 }
@@ -111,20 +132,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify admin access
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader || authHeader !== `Bearer ${process.env.ADMIN_BACKUP_KEY || 'backup-key'}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authCheck = await verifyAuth(request)
+    if (!authCheck.authorized) {
+      return NextResponse.json({ error: authCheck.error }, { status: 401 })
     }
 
     const body = await request.json().catch(() => ({}))
-    const dryRun = body.dryRun ?? true // Default to dry run for safety
+    const dryRun = body.dryRun ?? true
 
     const client = getR2Client()
     const bucketName = process.env.R2_BUCKET_NAME || 'yemenpedia-media'
     const backupPath = process.env.BACKUP_LOCAL_PATH || './backups/media'
 
-    // List all objects
     let allObjects: Array<{ key: string; size: number }> = []
     let continuationToken: string | undefined
     
@@ -160,19 +179,16 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Create backup directory
     if (!existsSync(backupPath)) {
       await mkdir(backupPath, { recursive: true })
     }
 
-    // Download and save each file
     let backedUp = 0
     let failed = 0
     const errors: string[] = []
 
     for (const obj of allObjects) {
       try {
-        // Create directory structure
         const filePath = path.join(backupPath, obj.key)
         const dir = path.dirname(filePath)
         
@@ -180,7 +196,6 @@ export async function POST(request: NextRequest) {
           await mkdir(dir, { recursive: true })
         }
 
-        // Download from R2
         const response = await client.send(
           new GetObjectCommand({
             Bucket: bucketName,
@@ -188,7 +203,6 @@ export async function POST(request: NextRequest) {
           })
         )
 
-        // Save to local
         if (response.Body) {
           const body = await response.Body.transformToByteArray()
           await writeFile(filePath, Buffer.from(body))
@@ -208,10 +222,9 @@ export async function POST(request: NextRequest) {
         backedUp,
         failed,
       },
-      errors: errors.slice(0, 10), // First 10 errors
+      errors: errors.slice(0, 10),
     })
   } catch (error) {
-    console.error('Backup error:', error)
     return NextResponse.json(
       { success: false, error: 'Backup failed' },
       { status: 500 }

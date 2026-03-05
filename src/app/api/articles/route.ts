@@ -1,26 +1,37 @@
+/**
+ * Articles API - SECURED
+ * 
+ * Security Fixes Applied:
+ * 1. authorId is taken from session, NOT from request body
+ * 2. User must be authenticated to create/update articles
+ * 3. Only article owner or admin can update articles
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { getAuthUser, canEdit } from '@/lib/session'
+
+// ============================================
+// Validation Schemas (authorId removed - taken from session)
+// ============================================
 
 const createArticleSchema = z.object({
-  title: z.string().min(1, 'العنوان مطلوب').optional(), // اختياري للمسودات الأولية
+  title: z.string().min(1, 'العنوان مطلوب').optional(),
   excerpt: z.string().optional(),
-  content: z.any().optional(), // TipTap JSON content
-  categoryId: z.string().optional(), // اختياري للمسودات
+  content: z.any().optional(),
+  categoryId: z.string().optional(),
   governorateId: z.string().nullish(),
   tags: z.string().optional(),
   status: z.enum(['DRAFT', 'PENDING']).default('DRAFT'),
-  authorId: z.string(),
   featuredImage: z.string().nullish(),
   featuredImageAlt: z.string().nullish(),
-  // SEO fields
   metaTitle: z.string().nullish(),
   metaDescription: z.string().nullish(),
   keywords: z.string().nullish(),
-  slug: z.string().optional(), // للتوافق
+  slug: z.string().optional(),
 })
 
-// مخطط تحديث المسودة - حقول اختيارية
 const updateArticleSchema = z.object({
   articleId: z.string(),
   title: z.string().optional(),
@@ -30,14 +41,16 @@ const updateArticleSchema = z.object({
   governorateId: z.string().nullish(),
   tags: z.string().optional(),
   status: z.enum(['DRAFT', 'PENDING']).optional(),
-  authorId: z.string(),
   featuredImage: z.string().nullish(),
   featuredImageAlt: z.string().nullish(),
-  // SEO fields
   metaTitle: z.string().nullish(),
   metaDescription: z.string().nullish(),
   keywords: z.string().nullish()
 })
+
+// ============================================
+// GET Articles (Public)
+// ============================================
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,7 +62,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const skip = (page - 1) * limit
 
-    const where: any = {}
+    const where: Record<string, unknown> = {}
     if (status) where.status = status
     if (categoryId) where.categoryId = categoryId
     if (authorId) where.authorId = authorId
@@ -79,27 +92,26 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Get articles error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
 
+// ============================================
+// POST Create Article (Authenticated)
+// ============================================
+
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Get user from session, NOT from body
+    const auth = await getAuthUser(request)
+    if (!auth.success) {
+      return NextResponse.json({ error: auth.error }, { status: auth.statusCode })
+    }
+    
+    const userId = auth.user.id // Use session user ID
+
     const body = await request.json()
     const validatedData = createArticleSchema.parse(body)
-
-    const authorId = validatedData.authorId
-
-    if (!authorId) {
-      return NextResponse.json({ error: 'يجب تسجيل الدخول لكتابة مقال' }, { status: 401 })
-    }
-
-    // Verify user exists
-    const user = await db.user.findUnique({ where: { id: authorId } })
-    if (!user) {
-      return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 401 })
-    }
 
     // للنشر النهائي، يجب اختيار قسم
     if (validatedData.status === 'PENDING' && !validatedData.categoryId) {
@@ -120,32 +132,28 @@ export async function POST(request: NextRequest) {
     const uniqueSlug = existingArticle ? `${slug}-${Date.now()}` : slug
 
     // بيانات المقال
-    const articleData: any = {
+    const articleData: Record<string, unknown> = {
       title: validatedData.title || 'مسودة بدون عنوان',
       slug: uniqueSlug,
       excerpt: validatedData.excerpt || '',
       content: validatedData.content || {},
-      authorId,
+      authorId: userId, // SECURITY: Use session user ID
       status: validatedData.status,
       primaryLang: 'ar',
       featuredImage: validatedData.featuredImage || null,
       featuredImageAlt: validatedData.featuredImageAlt || null,
-      // SEO fields
       metaTitle: validatedData.metaTitle || null,
       metaDescription: validatedData.metaDescription || null,
       keywords: validatedData.keywords || null
     }
 
-    // إضافة المحافظة إذا تم تحديدها
     if (validatedData.governorateId) {
       articleData.governorateId = validatedData.governorateId
     }
 
-    // إضافة القسم إذا تم تحديده
     if (validatedData.categoryId) {
       articleData.categoryId = validatedData.categoryId
     } else {
-      // استخدام قسم افتراضي للمسودات (أول قسم موجود)
       const defaultCategory = await db.category.findFirst()
       if (defaultCategory) {
         articleData.categoryId = defaultCategory.id
@@ -186,14 +194,14 @@ export async function POST(request: NextRequest) {
     // Update category article count
     if (articleData.categoryId) {
       await db.category.update({
-        where: { id: articleData.categoryId },
+        where: { id: articleData.categoryId as string },
         data: { articleCount: { increment: 1 } }
       })
     }
 
     // Award points for article submission
     await db.user.update({
-      where: { id: validatedData.authorId },
+      where: { id: userId },
       data: { points: { increment: 10 } }
     })
 
@@ -205,9 +213,6 @@ export async function POST(request: NextRequest) {
       article
     })
   } catch (error) {
-    console.error('Create article error:', error)
-    
-    // تحسين معالجة الخطأ
     if (error instanceof z.ZodError) {
       const firstError = error.issues[0]
       return NextResponse.json({ 
@@ -221,13 +226,25 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// تحديث مسودة موجودة
+// ============================================
+// PATCH Update Article (Owner or Editor+ only)
+// ============================================
+
 export async function PATCH(request: NextRequest) {
   try {
+    // SECURITY: Get user from session
+    const auth = await getAuthUser(request)
+    if (!auth.success) {
+      return NextResponse.json({ error: auth.error }, { status: auth.statusCode })
+    }
+    
+    const userId = auth.user.id
+    const userRole = auth.user.role
+
     const body = await request.json()
     const validatedData = updateArticleSchema.parse(body)
 
-    // التحقق من وجود المقال وملكيته للمستخدم
+    // Get existing article
     const existingArticle = await db.article.findUnique({
       where: { id: validatedData.articleId }
     })
@@ -236,20 +253,23 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'المقال غير موجود' }, { status: 404 })
     }
 
-    if (existingArticle.authorId !== validatedData.authorId) {
+    // SECURITY: Check ownership or editor+ role
+    const isOwner = existingArticle.authorId === userId
+    const canEditArticle = canEdit(userRole)
+    
+    if (!isOwner && !canEditArticle) {
       return NextResponse.json({ error: 'غير مصرح لك بتعديل هذا المقال' }, { status: 403 })
     }
 
-    // لا يمكن تعديل المقالات المنشورة أو قيد المراجعة (فقط المسودات)
-    if (existingArticle.status === 'APPROVED') {
+    // لا يمكن تعديل المقالات المنشورة (فقط المسودات) إلا المحررين فما فوق
+    if (existingArticle.status === 'APPROVED' && !canEditArticle) {
       return NextResponse.json({ error: 'لا يمكن تعديل مقال منشور' }, { status: 400 })
     }
 
     // بناء بيانات التحديث
-    const updateData: any = {}
+    const updateData: Record<string, unknown> = {}
     if (validatedData.title) {
       updateData.title = validatedData.title
-      // تحديث الـ slug إذا تغير العنوان
       const newSlug = validatedData.title
         .toLowerCase()
         .replace(/[^\w\s-]/g, '')
@@ -268,7 +288,6 @@ export async function PATCH(request: NextRequest) {
     if (validatedData.featuredImage !== undefined) updateData.featuredImage = validatedData.featuredImage
     if (validatedData.featuredImageAlt !== undefined) updateData.featuredImageAlt = validatedData.featuredImageAlt
     if (validatedData.governorateId !== undefined) updateData.governorateId = validatedData.governorateId
-    // SEO fields
     if (validatedData.metaTitle !== undefined) updateData.metaTitle = validatedData.metaTitle
     if (validatedData.metaDescription !== undefined) updateData.metaDescription = validatedData.metaDescription
     if (validatedData.keywords !== undefined) updateData.keywords = validatedData.keywords
@@ -281,7 +300,6 @@ export async function PATCH(request: NextRequest) {
 
     // تحديث الوسوم إذا تم توفيرها
     if (validatedData.tags !== undefined) {
-      // حذف الوسوم القديمة
       const oldTags = await db.articleTag.findMany({
         where: { articleId: validatedData.articleId }
       })
@@ -297,7 +315,6 @@ export async function PATCH(request: NextRequest) {
         where: { articleId: validatedData.articleId }
       })
 
-      // إضافة الوسوم الجديدة
       const tagNames = validatedData.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
       
       for (const tagName of tagNames) {
@@ -330,8 +347,6 @@ export async function PATCH(request: NextRequest) {
       article: updatedArticle
     })
   } catch (error) {
-    console.error('Update article error:', error)
-    
     if (error instanceof z.ZodError) {
       const firstError = error.issues?.[0]
       return NextResponse.json({ 

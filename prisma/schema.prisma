@@ -21,7 +21,7 @@ model User {
   socialLinks      Json?
   password         String?
   phone            String?
-  role             UserRole          @default(VISITOR)
+  role             Role              @default(MEMBER)
   points           Int               @default(0)
   isVerified       Boolean           @default(false)
   isActive         Boolean           @default(true)
@@ -501,13 +501,12 @@ model ActivityLog {
   @@index([createdAt])
 }
 
-enum UserRole {
-  ADMIN
-  VERIFIER
-  SUPERVISOR
-  WRITER
-  TRANSLATOR
-  VISITOR
+// Flexible Role System - Easily extensible for future roles (e.g., FACT_CHECKER)
+enum Role {
+  ADMIN      // Full system access
+  MODERATOR  // Content moderation, user management
+  EDITOR     // Content editing, article approval
+  MEMBER     // Basic user - default role
 }
 
 enum ArticleStatus {

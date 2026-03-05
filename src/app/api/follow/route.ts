@@ -1,13 +1,39 @@
+/**
+ * Follow API - SECURED
+ * 
+ * Security Fixes Applied:
+ * 1. followerId is taken from session, NOT from request body
+ * 2. Only the authenticated user can follow/unfollow others
+ * 3. Self-follow is prevented
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { followSchema, followQuerySchema } from '@/lib/validations'
+import { z } from 'zod'
+import { getAuthUser } from '@/lib/session'
+
+// Only followingId from body - followerId from session
+const followSchema = z.object({
+  followingId: z.string().min(1, 'معرف المستخدم مطلوب')
+})
+
+const followQuerySchema = z.object({
+  userId: z.string().optional(),
+  currentUserId: z.string().optional()
+})
 
 // Toggle follow/unfollow
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    // SECURITY: Get follower from session
+    const auth = await getAuthUser(request)
+    if (!auth.success) {
+      return NextResponse.json({ error: auth.error }, { status: auth.statusCode })
+    }
     
-    // Validate request body with Zod
+    const followerId = auth.user.id // Use session user ID
+
+    const body = await request.json()
     const validation = followSchema.safeParse(body)
     
     if (!validation.success) {
@@ -20,7 +46,21 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const { followerId, followingId } = validation.data
+    const { followingId } = validation.data
+
+    // SECURITY: Prevent self-follow
+    if (followerId === followingId) {
+      return NextResponse.json({ error: 'لا يمكنك متابعة نفسك' }, { status: 400 })
+    }
+
+    // Verify the user to follow exists
+    const userToFollow = await db.user.findUnique({
+      where: { id: followingId }
+    })
+
+    if (!userToFollow) {
+      return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+    }
 
     // Check if already following
     const existing = await db.follow.findUnique({
@@ -46,6 +86,17 @@ export async function POST(request: NextRequest) {
         data: { followerId, followingId }
       })
 
+      // Create notification
+      await db.notification.create({
+        data: {
+          userId: followingId,
+          type: 'NEW_FOLLOWER',
+          title: 'متابع جديد',
+          message: `${auth.user.name || auth.user.username} بدأ بمتابعتك`,
+          data: { followerId }
+        }
+      })
+
       const followersCount = await db.follow.count({
         where: { followingId }
       })
@@ -65,7 +116,6 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId') ?? undefined
     const currentUserId = searchParams.get('currentUserId') ?? undefined
 
-    // Validate query parameters with Zod
     const validation = followQuerySchema.safeParse({ userId, currentUserId })
 
     if (!validation.success) {
@@ -80,19 +130,30 @@ export async function GET(request: NextRequest) {
 
     const { userId: validatedUserId, currentUserId: validatedCurrentUserId } = validation.data
 
+    // If userId is not provided, use current user from session
+    let targetUserId = validatedUserId
+    if (!targetUserId) {
+      const auth = await getAuthUser(request)
+      if (auth.success) {
+        targetUserId = auth.user.id
+      } else {
+        return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 400 })
+      }
+    }
+
     const followersCount = await db.follow.count({
-      where: { followingId: validatedUserId }
+      where: { followingId: targetUserId }
     })
 
     const followingCount = await db.follow.count({
-      where: { followerId: validatedUserId }
+      where: { followerId: targetUserId }
     })
 
     let isFollowing = false
-    if (validatedCurrentUserId && validatedCurrentUserId !== validatedUserId) {
+    if (validatedCurrentUserId && validatedCurrentUserId !== targetUserId) {
       const follow = await db.follow.findUnique({
         where: {
-          followerId_followingId: { followerId: validatedCurrentUserId, followingId: validatedUserId }
+          followerId_followingId: { followerId: validatedCurrentUserId, followingId: targetUserId }
         }
       })
       isFollowing = !!follow

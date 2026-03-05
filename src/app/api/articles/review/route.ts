@@ -1,31 +1,40 @@
+/**
+ * Article Review API - SECURED
+ * 
+ * Security Fixes Applied:
+ * 1. reviewerId is taken from session, NOT from request body
+ * 2. Only users with EDITOR+ role can review articles
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { getAuthUser, canEdit, canModerate } from '@/lib/session'
 
 const reviewSchema = z.object({
   articleId: z.string(),
   status: z.enum(['APPROVED', 'REJECTED']),
-  reviewerId: z.string(),
   notes: z.string().optional()
 })
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const validatedData = reviewSchema.parse(body)
-
-    // Verify reviewer exists and has permission
-    const reviewer = await db.user.findUnique({
-      where: { id: validatedData.reviewerId }
-    })
-
-    if (!reviewer) {
-      return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 401 })
+    // SECURITY: Get reviewer from session
+    const auth = await getAuthUser(request)
+    if (!auth.success) {
+      return NextResponse.json({ error: auth.error }, { status: auth.statusCode })
     }
 
-    if (!['ADMIN', 'VERIFIER', 'SUPERVISOR'].includes(reviewer.role)) {
+    const reviewerId = auth.user.id
+    const reviewerRole = auth.user.role
+
+    // SECURITY: Only EDITOR+ can review articles
+    if (!canEdit(reviewerRole)) {
       return NextResponse.json({ error: 'ليس لديك صلاحية لمراجعة المقالات' }, { status: 403 })
     }
+
+    const body = await request.json()
+    const validatedData = reviewSchema.parse(body)
 
     // Get article
     const article = await db.article.findUnique({
@@ -46,7 +55,7 @@ export async function POST(request: NextRequest) {
       where: { id: validatedData.articleId },
       data: {
         status: validatedData.status,
-        reviewedBy: validatedData.reviewerId,
+        reviewedBy: reviewerId,
         reviewedAt: new Date(),
         reviewNotes: validatedData.notes,
         publishedAt: validatedData.status === 'APPROVED' ? new Date() : null
@@ -57,7 +66,7 @@ export async function POST(request: NextRequest) {
     await db.articleReview.create({
       data: {
         articleId: validatedData.articleId,
-        reviewerId: validatedData.reviewerId,
+        reviewerId: reviewerId,
         status: validatedData.status,
         notes: validatedData.notes
       }
@@ -83,7 +92,6 @@ export async function POST(request: NextRequest) {
         data: { points: { increment: 10 } }
       })
 
-      // Create points notification
       await db.notification.create({
         data: {
           userId: article.authorId,
@@ -104,7 +112,6 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues[0].message }, { status: 400 })
     }
-    console.error('Review error:', error)
     return NextResponse.json({ error: 'حدث خطأ أثناء مراجعة المقال' }, { status: 500 })
   }
 }
