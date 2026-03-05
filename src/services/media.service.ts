@@ -329,8 +329,7 @@ export class MediaService {
         })
       )
       return true
-    } catch (error) {
-      console.error('Failed to delete from R2:', error)
+    } catch {
       return false
     }
   }
@@ -689,8 +688,7 @@ export class MediaService {
       await db.articleMedia.delete({ where: { id: mediaId } })
 
       return true
-    } catch (error) {
-      console.error('Failed to delete media:', error)
+    } catch {
       return false
     }
   }

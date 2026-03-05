@@ -13,6 +13,9 @@ import { CTASection } from '@/components/home/CTASection'
 import { useRouter, usePathname } from '@/i18n/routing'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Force dynamic rendering - uses client-side auth
+export const dynamic = 'force-dynamic'
+
 export default function Home() {
   const { theme, setTheme } = useTheme()
   const locale = useLocale()

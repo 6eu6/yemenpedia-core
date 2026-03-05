@@ -1,16 +1,25 @@
 /**
- * Articles API - SECURED
+ * Articles API - SECURED & OPTIMIZED
  * 
  * Security Fixes Applied:
  * 1. authorId is taken from session, NOT from request body
  * 2. User must be authenticated to create/update articles
  * 3. Only article owner or admin can update articles
+ * 4. Rate limiting prevents content spam
+ * 
+ * Performance Fixes Applied:
+ * 1. N+1 queries fixed with batch operations using $transaction
+ * 2. Tag operations use bulk upserts instead of sequential loops
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 import { getAuthUser, canEdit } from '@/lib/session'
+import { checkRateLimit, getClientIP, RATE_LIMITS } from '@/lib/rate-limiter'
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
 
 // ============================================
 // Validation Schemas (authorId removed - taken from session)
@@ -91,7 +100,7 @@ export async function GET(request: NextRequest) {
         pages: Math.ceil(total / limit)
       }
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
@@ -102,6 +111,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // RATE LIMIT: Prevent content spam (10 articles per hour per IP)
+    const clientIP = getClientIP(request)
+    const rateLimit = checkRateLimit(`article:${clientIP}`, RATE_LIMITS.ARTICLE_CREATE)
+    
+    if (!rateLimit.allowed) {
+      const resetMinutes = Math.ceil((rateLimit.resetAt - Date.now()) / 60000)
+      return NextResponse.json({ 
+        error: `تم تجاوز حد إنشاء المقالات. يرجى المحاولة بعد ${resetMinutes} دقيقة` 
+      }, { status: 429 })
+    }
+
     // SECURITY: Get user from session, NOT from body
     const auth = await getAuthUser(request)
     if (!auth.success) {
@@ -131,78 +151,78 @@ export async function POST(request: NextRequest) {
     const existingArticle = await db.article.findUnique({ where: { slug } })
     const uniqueSlug = existingArticle ? `${slug}-${Date.now()}` : slug
 
-    // بيانات المقال
-    const articleData: Record<string, unknown> = {
-      title: validatedData.title || 'مسودة بدون عنوان',
-      slug: uniqueSlug,
-      excerpt: validatedData.excerpt || '',
-      content: validatedData.content || {},
-      authorId: userId, // SECURITY: Use session user ID
-      status: validatedData.status,
-      primaryLang: 'ar',
-      featuredImage: validatedData.featuredImage || null,
-      featuredImageAlt: validatedData.featuredImageAlt || null,
-      metaTitle: validatedData.metaTitle || null,
-      metaDescription: validatedData.metaDescription || null,
-      keywords: validatedData.keywords || null
-    }
-
-    if (validatedData.governorateId) {
-      articleData.governorateId = validatedData.governorateId
-    }
-
-    if (validatedData.categoryId) {
-      articleData.categoryId = validatedData.categoryId
-    } else {
+    // Get default category if not provided
+    let categoryId = validatedData.categoryId
+    if (!categoryId) {
       const defaultCategory = await db.category.findFirst()
-      if (defaultCategory) {
-        articleData.categoryId = defaultCategory.id
-      }
+      categoryId = defaultCategory?.id
     }
 
-    // Create article
-    const article = await db.article.create({
-      data: articleData
-    })
+    if (!categoryId) {
+      return NextResponse.json({ error: 'لا يوجد قسم افتراضي' }, { status: 400 })
+    }
 
-    // Handle tags
-    if (validatedData.tags) {
-      const tagNames = validatedData.tags.split(',').map(t => t.trim()).filter(Boolean)
-      
-      for (const tagName of tagNames) {
-        const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
-        
-        let tag = await db.tag.findUnique({ where: { slug: tagSlug } })
-        
-        if (!tag) {
-          tag = await db.tag.create({
-            data: { name: tagName, slug: tagSlug }
-          })
+    // Parse tags once
+    const tagNames = validatedData.tags 
+      ? validatedData.tags.split(',').map(t => t.trim()).filter(Boolean)
+      : []
+
+    // PERFORMANCE: Use transaction for batch operations
+    const result = await db.$transaction(async (tx) => {
+      // Create article
+      const article = await tx.article.create({
+        data: {
+          title: validatedData.title || 'مسودة بدون عنوان',
+          slug: uniqueSlug,
+          excerpt: validatedData.excerpt || '',
+          content: validatedData.content || {},
+          authorId: userId,
+          categoryId,
+          governorateId: validatedData.governorateId || null,
+          status: validatedData.status,
+          primaryLang: 'ar',
+          featuredImage: validatedData.featuredImage || null,
+          featuredImageAlt: validatedData.featuredImageAlt || null,
+          metaTitle: validatedData.metaTitle || null,
+          metaDescription: validatedData.metaDescription || null,
+          keywords: validatedData.keywords || null
         }
+      })
 
-        await db.articleTag.create({
-          data: { articleId: article.id, tagId: tag.id }
+      // PERFORMANCE: Batch tag operations
+      if (tagNames.length > 0) {
+        // Upsert all tags in parallel
+        const tagOperations = tagNames.map(tagName => {
+          const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
+          return tx.tag.upsert({
+            where: { slug: tagSlug },
+            create: { name: tagName, slug: tagSlug, articleCount: 1 },
+            update: { articleCount: { increment: 1 } }
+          })
         })
-
-        await db.tag.update({
-          where: { id: tag.id },
-          data: { articleCount: { increment: 1 } }
+        
+        const tags = await Promise.all(tagOperations)
+        
+        // Create article-tag relations in batch
+        await tx.articleTag.createMany({
+          data: tags.map(tag => ({ articleId: article.id, tagId: tag.id })),
+          skipDuplicates: true
         })
       }
-    }
 
-    // Update category article count
-    if (articleData.categoryId) {
-      await db.category.update({
-        where: { id: articleData.categoryId as string },
+      // Update category article count
+      await tx.category.update({
+        where: { id: categoryId },
         data: { articleCount: { increment: 1 } }
       })
-    }
 
-    // Award points for article submission
-    await db.user.update({
-      where: { id: userId },
-      data: { points: { increment: 10 } }
+      // Award points for article submission
+      await tx.user.update({
+        where: { id: userId },
+        data: { points: { increment: 10 } }
+      })
+
+      return article
     })
 
     return NextResponse.json({
@@ -210,7 +230,7 @@ export async function POST(request: NextRequest) {
       message: validatedData.status === 'PENDING' 
         ? 'تم إرسال المقال للمراجعة' 
         : 'تم حفظ المسودة',
-      article
+      article: result
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -292,59 +312,70 @@ export async function PATCH(request: NextRequest) {
     if (validatedData.metaDescription !== undefined) updateData.metaDescription = validatedData.metaDescription
     if (validatedData.keywords !== undefined) updateData.keywords = validatedData.keywords
 
-    // تحديث المقال
-    const updatedArticle = await db.article.update({
-      where: { id: validatedData.articleId },
-      data: updateData
-    })
+    // Parse tags if provided
+    const newTagNames = validatedData.tags !== undefined 
+      ? validatedData.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+      : null
 
-    // تحديث الوسوم إذا تم توفيرها
-    if (validatedData.tags !== undefined) {
-      const oldTags = await db.articleTag.findMany({
-        where: { articleId: validatedData.articleId }
+    // PERFORMANCE: Use transaction for batch operations
+    const result = await db.$transaction(async (tx) => {
+      // Update article
+      const updatedArticle = await tx.article.update({
+        where: { id: validatedData.articleId },
+        data: updateData
       })
-      
-      for (const oldTag of oldTags) {
-        await db.tag.update({
-          where: { id: oldTag.tagId },
-          data: { articleCount: { decrement: 1 } }
+
+      // تحديث الوسوم إذا تم توفيرها
+      if (newTagNames !== null) {
+        // Get current tags
+        const oldTags = await tx.articleTag.findMany({
+          where: { articleId: validatedData.articleId },
+          select: { tagId: true }
         })
-      }
-      
-      await db.articleTag.deleteMany({
-        where: { articleId: validatedData.articleId }
-      })
 
-      const tagNames = validatedData.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
-      
-      for (const tagName of tagNames) {
-        const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
-        
-        let tag = await db.tag.findUnique({ where: { slug: tagSlug } })
-        
-        if (!tag) {
-          tag = await db.tag.create({
-            data: { name: tagName, slug: tagSlug }
+        // PERFORMANCE: Batch decrement old tags
+        if (oldTags.length > 0) {
+          await tx.tag.updateMany({
+            where: { id: { in: oldTags.map(t => t.tagId) } },
+            data: { articleCount: { decrement: 1 } }
           })
         }
-
-        await db.articleTag.create({
-          data: { articleId: validatedData.articleId, tagId: tag.id }
+        
+        // Delete old article-tag relations
+        await tx.articleTag.deleteMany({
+          where: { articleId: validatedData.articleId }
         })
 
-        await db.tag.update({
-          where: { id: tag.id },
-          data: { articleCount: { increment: 1 } }
-        })
+        // PERFORMANCE: Batch upsert new tags
+        if (newTagNames.length > 0) {
+          const tagOperations = newTagNames.map(tagName => {
+            const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
+            return tx.tag.upsert({
+              where: { slug: tagSlug },
+              create: { name: tagName, slug: tagSlug, articleCount: 1 },
+              update: { articleCount: { increment: 1 } }
+            })
+          })
+          
+          const tags = await Promise.all(tagOperations)
+          
+          // Create article-tag relations in batch
+          await tx.articleTag.createMany({
+            data: tags.map(tag => ({ articleId: validatedData.articleId, tagId: tag.id })),
+            skipDuplicates: true
+          })
+        }
       }
-    }
+
+      return updatedArticle
+    })
 
     return NextResponse.json({
       success: true,
       message: validatedData.status === 'PENDING' 
         ? 'تم إرسال المقال للمراجعة' 
         : 'تم حفظ المسودة',
-      article: updatedArticle
+      article: result
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

@@ -93,7 +93,6 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Search API Error:', error)
     return NextResponse.json(
       { success: false, error: 'حدث خطأ في البحث' },
       { status: 500 }

@@ -6,6 +6,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
+// Force dynamic rendering - database access required
+export const dynamic = 'force-dynamic'
+
 interface GovernoratePageProps {
   params: Promise<{ slug: string }>
 }

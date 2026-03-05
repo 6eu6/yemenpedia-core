@@ -100,12 +100,6 @@ export async function POST(request: NextRequest) {
     })
 
     // TODO: Send password reset email
-    // For now, we'll just log it
-    console.log(`
-      Password reset email for ${normalizedEmail}:
-      Token: ${token}
-      Link: ${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/reset-password?token=${token}
-    `)
 
     return NextResponse.json<ForgotPasswordResponse>(
       {
@@ -115,7 +109,6 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
   } catch (error) {
-    console.error('Forgot password error:', error)
     return NextResponse.json<ForgotPasswordResponse>(
       {
         success: false,

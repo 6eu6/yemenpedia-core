@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button'
 import { FileText, Users, FolderTree, Globe, Heart, Award, BookOpen } from 'lucide-react'
 import Link from 'next/link'
 
+// Force dynamic rendering - database access required
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'عن الموسوعة | يمنبيديا',
   description: 'تعرف على موسوعة اليمن الوطنية - Yemenpedia'

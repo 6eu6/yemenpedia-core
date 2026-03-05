@@ -11,6 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Users, Shield, UserCheck, UserX } from 'lucide-react'
 
+// Force dynamic rendering - database access required
+export const dynamic = 'force-dynamic'
+
 async function getUsersStats() {
   const [total, admins, active, banned] = await Promise.all([
     db.user.count(),

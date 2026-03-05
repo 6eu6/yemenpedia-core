@@ -150,7 +150,6 @@ export async function POST(request: NextRequest) {
       savedAt: new Date().toISOString(),
     })
   } catch (error) {
-    console.error('Image optimization error:', error)
     return NextResponse.json({ 
       error: 'حدث خطأ أثناء معالجة الصورة',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -207,7 +206,6 @@ export async function GET(request: NextRequest) {
       ),
     })
   } catch (error) {
-    console.error('Preview error:', error)
     return NextResponse.json({ error: 'حدث خطأ أثناء إنشاء المعاينة' }, { status: 500 })
   }
 }

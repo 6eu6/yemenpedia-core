@@ -43,7 +43,6 @@ export async function GET(request: NextRequest) {
       unreadCount
     })
   } catch (error) {
-    console.error('Get notifications error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
@@ -94,7 +93,6 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ error: 'بيانات غير صالحة' }, { status: 400 })
   } catch (error) {
-    console.error('Update notification error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
@@ -136,7 +134,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Delete notification error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }

@@ -8,7 +8,8 @@ import GoogleProvider from 'next-auth/providers/google'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import { db } from './db'
 import { verifyPassword, normalizeEmail } from './auth-utils'
-import { UserRole } from '@/types/auth'
+import type { Role } from '@/types/auth'
+import { ROLE_NAMES } from '@/config/roles.config'
 
 declare module 'next-auth' {
   interface Session {
@@ -17,7 +18,7 @@ declare module 'next-auth' {
       email: string
       name: string | null
       image: string | null
-      role: UserRole
+      role: Role
       isVerified: boolean
       isActive: boolean
       isBanned: boolean
@@ -30,7 +31,7 @@ declare module 'next-auth' {
     email: string
     name: string | null
     image: string | null
-    role: UserRole
+    role: Role
     isVerified: boolean
     isActive: boolean
     isBanned: boolean
@@ -44,7 +45,7 @@ declare module 'next-auth/jwt' {
     email: string
     name: string | null
     picture: string | null
-    role: UserRole
+    role: Role
     isVerified: boolean
     isActive: boolean
     isBanned: boolean
@@ -119,7 +120,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           image: user.image,
-          role: user.role as UserRole,
+          role: user.role as Role,
           isVerified: user.isVerified,
           isActive: user.isActive,
           isBanned: user.isBanned,
@@ -141,7 +142,7 @@ export const authOptions: NextAuthOptions = {
           name: profile.name,
           email: profile.email,
           image: profile.picture,
-          role: 'VISITOR' as UserRole,
+          role: ROLE_NAMES.MEMBER,
           isVerified: profile.email_verified ?? false,
           isActive: true,
           isBanned: false,
@@ -199,7 +200,7 @@ export const authOptions: NextAuthOptions = {
 
           // Return the existing user data
           user.id = existingUser.id
-          user.role = existingUser.role as UserRole
+          user.role = existingUser.role as Role
           user.isVerified = existingUser.isVerified
           user.isActive = existingUser.isActive
           user.isBanned = existingUser.isBanned
@@ -212,14 +213,14 @@ export const authOptions: NextAuthOptions = {
               name: user.name,
               image: user.image,
               googleId: profile?.sub,
-              role: 'VISITOR',
+              role: ROLE_NAMES.MEMBER,
               isVerified: (profile as { email_verified?: boolean })?.email_verified ?? true,
               isActive: true,
               preferredLang: 'ar',
             },
           })
           user.id = newUser.id
-          user.role = newUser.role as UserRole
+          user.role = newUser.role as Role
           user.isVerified = newUser.isVerified
           user.isActive = newUser.isActive
           user.isBanned = newUser.isBanned
@@ -267,7 +268,7 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (dbUser) {
-          token.role = dbUser.role as UserRole
+          token.role = dbUser.role as Role
           token.isVerified = dbUser.isVerified
           token.isActive = dbUser.isActive
           token.isBanned = dbUser.isBanned
@@ -307,18 +308,10 @@ export const authOptions: NextAuthOptions = {
   },
 
   events: {
-    async signIn({ user, account }) {
-      console.log(`User signed in: ${user.email} via ${account?.provider || 'credentials'}`)
-    },
-    async signOut({ token }) {
-      console.log(`User signed out: ${token?.email}`)
-    },
-    async createUser({ user }) {
-      console.log(`New user created: ${user.email}`)
-    },
+    // Sign-in/sign-out events are tracked via database only
   },
 
-  debug: process.env.NODE_ENV === 'development',
+  debug: false,
 }
 
 // Helper function to get server-side session

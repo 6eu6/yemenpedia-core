@@ -680,11 +680,11 @@ export default function PublicProfilePage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="w-48">
-                              <DropdownMenuItem onClick={shareProfile}>
+                              <DropdownMenuItem onClick={shareProfile} className="cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500">
                                 <Share2 className="h-4 w-4 ml-2" />نسخ رابط الملف
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
+                              <DropdownMenuItem asChild className="cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500">
                                 <Link href="/dashboard/settings">
                                   <Settings className="h-4 w-4 ml-2" />الإعدادات المتقدمة
                                 </Link>

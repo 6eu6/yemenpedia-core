@@ -28,6 +28,9 @@ import type { MediaPickerResult } from '@/components/media'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Force dynamic rendering - uses client-side auth
+export const dynamic = 'force-dynamic'
+
 // ============================================
 // Types
 // ============================================

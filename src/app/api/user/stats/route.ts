@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Error fetching user stats:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }

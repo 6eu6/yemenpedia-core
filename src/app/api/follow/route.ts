@@ -104,7 +104,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ isFollowing: true, followersCount })
     }
   } catch (error) {
-    console.error('Follow error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
@@ -161,7 +160,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ followersCount, followingCount, isFollowing })
   } catch (error) {
-    console.error('Get follow data error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }

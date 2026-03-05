@@ -432,9 +432,8 @@ export class WikiLinkService {
             autoLinked: true,
           },
         })
-      } catch (error) {
+      } catch {
         // Skip duplicate links
-        console.warn('Duplicate link skipped:', error)
       }
     }
   }

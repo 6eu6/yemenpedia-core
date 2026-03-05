@@ -132,8 +132,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthResult | Au
       success: true,
       user: safeUser
     }
-  } catch (error) {
-    console.error('Auth error:', error)
+  } catch {
     return {
       success: false,
       error: 'Internal authentication error',

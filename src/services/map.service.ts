@@ -118,8 +118,7 @@ export class MapService {
         state: result.address?.state,
         country: result.address?.country,
       }))
-    } catch (error) {
-      console.error('Geocoding error:', error)
+    } catch {
       return []
     }
   }
@@ -161,8 +160,7 @@ export class MapService {
         state: data.address?.state,
         country: data.address?.country,
       }
-    } catch (error) {
-      console.error('Reverse geocoding error:', error)
+    } catch {
       return null
     }
   }

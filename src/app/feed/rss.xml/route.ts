@@ -1,5 +1,8 @@
 import { db } from '@/lib/db'
 
+// Force dynamic rendering - database access required
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://yemenpedia.org'
 

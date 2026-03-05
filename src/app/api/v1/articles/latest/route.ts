@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-// GOVERNANCE: Real articles from database - NO HARDCODED ARTICLES
-// Article III, Section 3.1: Zero Placeholder Policy
+/**
+ * Latest Articles API
+ * Returns most recent published articles (excludes soft-deleted)
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const limit = Math.min(parseInt(searchParams.get('limit') || '6'), 20)
 
-    // Fetch latest published articles
+    // Fetch latest published articles (exclude soft-deleted)
     const articles = await db.article.findMany({
       where: {
-        status: 'APPROVED'
+        status: 'APPROVED',
+        deletedAt: null // Soft delete filter
       },
       select: {
         id: true,
@@ -46,7 +49,7 @@ export async function GET(request: NextRequest) {
     const formattedArticles = articles.map(article => {
       // Estimate read time from content
       const contentLength = article.content ? JSON.stringify(article.content).length : 0
-      const wordCount = Math.ceil(contentLength / 5) // Approximate word count
+      const wordCount = Math.ceil(contentLength / 5)
       const readTime = Math.max(1, Math.ceil(wordCount / 200))
 
       return {
@@ -70,18 +73,16 @@ export async function GET(request: NextRequest) {
     }, {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=60' // Cache for 1 minute
+        'Cache-Control': 'public, max-age=60'
       }
     })
-  } catch (error) {
-    console.error('Latest Articles API Error:', error)
-
-    // GOVERNANCE: Return empty array on error - NO FAKE ARTICLES
+  } catch {
+    // Return empty array on error
     return NextResponse.json({
       articles: [],
       count: 0
     }, {
-      status: 200, // Return 200 with empty array
+      status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'public, max-age=10'

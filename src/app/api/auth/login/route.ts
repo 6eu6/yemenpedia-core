@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { compare } from 'bcryptjs'
 import { z } from 'zod'
+import { checkRateLimit, getClientIP, RATE_LIMITS } from '@/lib/rate-limiter'
+import { randomBytes } from 'crypto'
 
 // Login can be with email OR username
 const loginSchema = z.object({
@@ -12,6 +14,19 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(request)
+    const rateLimitKey = `login:${clientIP}`
+    const rateCheck = checkRateLimit(rateLimitKey, RATE_LIMITS.LOGIN)
+    
+    if (!rateCheck.allowed) {
+      const resetMinutes = Math.ceil((rateCheck.resetAt - Date.now()) / 60000)
+      return NextResponse.json(
+        { error: `تم تجاوز عدد محاولات تسجيل الدخول. يرجى المحاولة بعد ${resetMinutes} دقيقة` },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
     const validatedData = loginSchema.parse(body)
     
@@ -80,19 +95,23 @@ export async function POST(request: NextRequest) {
       }
     })
     
-    // Set session cookie
+    // Set session cookie with CSRF token
     const maxAge = validatedData.remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7
+    const csrfToken = randomBytes(32).toString('hex')
     
+    // SECURITY: Use 'lax' instead of 'none' to prevent CSRF attacks
     response.cookies.set('session', JSON.stringify({
       id: user.id,
       username: user.username,
       email: user.email,
       role: user.role,
-      name: user.name
+      name: user.name,
+      csrfToken,
+      createdAt: Date.now()
     }), {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax', // Changed from 'none' to 'lax' for CSRF protection
       maxAge,
       path: '/'
     })
@@ -107,7 +126,6 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    console.error('Login error:', error)
     return NextResponse.json(
       { error: 'حدث خطأ أثناء تسجيل الدخول' },
       { status: 500 }

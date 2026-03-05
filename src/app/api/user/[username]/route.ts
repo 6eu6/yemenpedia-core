@@ -58,7 +58,6 @@ export async function GET(
       }
     })
   } catch (error) {
-    console.error('Get user error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }

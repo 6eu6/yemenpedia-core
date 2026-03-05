@@ -17,6 +17,9 @@ import { formatDistanceToNow } from 'date-fns'
 import { ar, enUS } from 'date-fns/locale'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Force dynamic rendering - uses client-side auth
+export const dynamic = 'force-dynamic'
+
 interface ArticleForReview {
   id: string
   title: string

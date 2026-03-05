@@ -31,6 +31,9 @@ import { useTheme } from 'next-themes'
 import { useRouter as useRouterBase, usePathname } from '@/i18n/routing'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Force dynamic rendering - uses client-side auth
+export const dynamic = 'force-dynamic'
+
 export default function SettingsPage() {
   const router = useRouterBase()
   const toast = useToast()

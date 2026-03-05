@@ -161,7 +161,6 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
   } catch (error) {
-    console.error('Reset password error:', error)
     return NextResponse.json<ResetPasswordResponse>(
       {
         success: false,
@@ -227,7 +226,6 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     )
   } catch (error) {
-    console.error('Token validation error:', error)
     return NextResponse.json(
       {
         success: false,

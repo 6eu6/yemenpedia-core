@@ -36,7 +36,6 @@ export async function GET(request: NextRequest) {
       available: !existingUser
     })
   } catch (error) {
-    console.error('Check username error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }

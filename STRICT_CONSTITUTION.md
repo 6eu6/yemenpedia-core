@@ -10,7 +10,11 @@
 
 ## II. INFRASTRUCTURE (BUN & NODE COMPATIBILITY)
 1. **Package Manager:** Use **Bun** for local development (`bun install`, `bun run`).
-2. **Database:** PostgreSQL (Supabase Pooler). Connection MUST use `?pgbouncer=true`.
+2. **Database:** PostgreSQL via Supabase Pooler (IPv4 ONLY).
+   - **CRITICAL:** Sandbox environments use system-level `DATABASE_URL` pointing to SQLite that CANNOT be overridden by .env
+   - **SOLUTION:** Use `SUPABASE_POOLER_URL` environment variable in code (see `src/lib/db.ts`)
+   - Connection MUST include `?pgbouncer=true` for connection pooling
+   - Direct Supabase URLs (IPv6) are BANNED - they WILL FAIL in sandbox
 3. **Soft Delete:** Implement a 30-day grace period (`deletedAt`). Automated cleanup via Cron. [Rule 27]
 4. **Media:**
    - Images: Sharp (WebP, 80% quality) -> Cloudflare R2.
@@ -19,8 +23,13 @@
 
 ## III. UI/UX & DESIGN PHILOSOPHY
 1. **The Singleton Rule:** Primary actions (Create, Edit) must have ONE logical home in the UI. No redundant buttons.
-2. **Visual Identity:** Ultra-Neutral Zinc (Shadcn/UI + Ariakit). Zero Emojis. Zero Placeholder text.
+2. **Visual Identity:** Ultra-Neutral Zinc (Shadcn/UI + Radix). Zero Emojis. Zero Placeholder text.
+   - **UI Library:** Shadcn/UI (built on Radix UI) - STABLE, WELL-DOCUMENTED, ACCESSIBLE
+   - **Icons:** Lucide-React ONLY
+   - **Animations:** Framer Motion (sparingly)
+   - **Dark/Light Mode:** Supported via next-themes + CSS Variables
 3. **Typography:** IBM Plex Sans Arabic (RTL) and Inter (LTR).
+4. **RTL Support:** Mandatory for Arabic content. All components must support dir="rtl".
 
 ## IV. OPERATIONAL PROTOCOLS
 1. **Secrets:** Never paste API keys in chat. Use `process.env`.
@@ -36,6 +45,6 @@
 
 ---
 
-**Last Updated:** 2025-03-05
-**Version:** 5.1
+**Last Updated:** 2025-03-06
+**Version:** 5.2
 **Status:** ACTIVE

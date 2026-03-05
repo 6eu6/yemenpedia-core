@@ -2,10 +2,15 @@
 // Yemenpedia - Authentication Types
 // =============================================
 
-import type { UserRole } from './index'
+// استيراد الأدوار من ملف التكوين المركزي
+import type { RoleName } from '@/config/roles.config'
+import { ROLE_HIERARCHY, ROLE_PERMISSIONS, ROLE_NAMES } from '@/config/roles.config'
 
-// Re-export UserRole for convenience
-export type { UserRole } from './index'
+// نوع الدور (للتوافق مع الكود القديم)
+export type Role = RoleName
+
+// Re-export Role for convenience
+export type { RoleName } from '@/config/roles.config'
 
 // =============================================
 // Session Types
@@ -15,7 +20,7 @@ export interface AuthUser {
   email: string
   name: string | null
   image: string | null
-  role: UserRole
+  role: Role
   isVerified: boolean
   isActive: boolean
   isBanned: boolean
@@ -140,75 +145,12 @@ export interface OAuthAccount {
 // =============================================
 // Role Permission Types
 // =============================================
-export interface RolePermission {
-  role: UserRole
-  permissions: string[]
-}
 
 // Role hierarchy for permission inheritance
-export const ROLE_HIERARCHY: UserRole[] = [
-  'VISITOR',
-  'WRITER',
-  'SUPERVISOR',
-  'VERIFIER',
-  'ADMIN'
-]
+export { ROLE_HIERARCHY }
 
 // Permission definitions per role
-export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
-  VISITOR: [
-    'read:articles',
-    'read:categories',
-    'read:governorates',
-    'write:comments',
-    'edit:own_profile',
-  ],
-  WRITER: [
-    'read:articles',
-    'read:categories',
-    'read:governorates',
-    'write:comments',
-    'edit:own_profile',
-    'create:articles',
-    'edit:own_articles',
-    'request:categories',
-  ],
-  SUPERVISOR: [
-    'read:articles',
-    'read:categories',
-    'read:governorates',
-    'write:comments',
-    'edit:own_profile',
-    'create:articles',
-    'edit:own_articles',
-    'request:categories',
-    'review:section_articles',
-    'manage:section_users',
-  ],
-  VERIFIER: [
-    'read:articles',
-    'read:categories',
-    'read:governorates',
-    'write:comments',
-    'edit:own_profile',
-    'create:articles',
-    'edit:own_articles',
-    'request:categories',
-    'review:all_articles',
-    'verify:content',
-  ],
-  ADMIN: [
-    'read:all',
-    'write:all',
-    'edit:all',
-    'delete:all',
-    'manage:users',
-    'manage:roles',
-    'manage:categories',
-    'manage:settings',
-    'access:admin_panel',
-  ],
-}
+export { ROLE_PERMISSIONS }
 
 // =============================================
 // Auth Error Types

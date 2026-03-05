@@ -13,6 +13,9 @@ import { MessageSquare, Send, Loader2, Search } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Force dynamic rendering - uses client-side auth
+export const dynamic = 'force-dynamic'
+
 interface Message {
   id: string
   sender: { name: string; username: string }

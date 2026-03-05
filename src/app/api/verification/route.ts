@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, request: verificationRequest })
   } catch (error) {
-    console.error('Verification request error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
@@ -74,7 +73,6 @@ export async function GET(request: NextRequest) {
       request: verificationRequest
     })
   } catch (error) {
-    console.error('Get verification status error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
@@ -122,7 +120,6 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true, request: updated })
   } catch (error) {
-    console.error('Review verification error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }

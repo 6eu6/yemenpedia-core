@@ -4,182 +4,146 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  url       = env("SUPABASE_POOLER_URL")
   directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id               String            @id @default(cuid())
-  email            String            @unique
-  username         String?           @unique
-  name             String?
-  image            String?
-  coverImage       String?
-  bio              String?
-  location         String?
-  website          String?
-  socialLinks      Json?
-  password         String?
-  phone            String?
-  role             Role              @default(MEMBER)
-  points           Int               @default(0)
-  isVerified       Boolean           @default(false)
-  isActive         Boolean           @default(true)
-  isBanned         Boolean           @default(false)
-  googleId         String?           @unique
-  facebookId       String?           @unique
-  preferredLang    String            @default("ar")
-  settings         Json?
-  emailVerifiedAt  DateTime?
-  lastLoginAt      DateTime?
-  deletedAt        DateTime?         // Soft delete - 30 day grace period
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  articles         Article[]         @relation("ArticleAuthor")
-  reviewedArticles Article[]         @relation("ArticleReviewer")
-  articleBookmarks ArticleBookmark[]
-  articleLikes     ArticleLike[]
-  articleReviews   ArticleReview[]
-  articleVersions  ArticleVersion[]
-  categories       Category[]
-  comments         Comment[]
-  commentLikes     CommentLike[]
-  followers        Follow[]          @relation("UserFollowers")
-  following        Follow[]          @relation("UserFollowing")
-  messagesReceived Message[]         @relation("MessageReceiver")
-  messagesSent     Message[]         @relation("MessageSender")
-  notifications    Notification[]
-  badges           UserBadge[]
+model ActivityLog {
+  id         String   @id
+  userId     String
+  action     String
+  entityType String?
+  entityId   String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
 
-  @@index([email])
-  @@index([role])
-  @@index([isActive])
-}
-
-model Follow {
-  id          String   @id @default(cuid())
-  followerId  String
-  followingId String
-  createdAt   DateTime @default(now())
-  follower    User     @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
-  following   User     @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
-
-  @@unique([followerId, followingId])
-  @@index([followerId])
-  @@index([followingId])
-}
-
-model Category {
-  id              String     @id @default(cuid())
-  name            String
-  nameEn          String?
-  slug            String     @unique
-  description     String?
-  descriptionEn   String?
-  icon            String?
-  image           String?
-  parentId        String?
-  order           Int        @default(0)
-  isActive        Boolean    @default(true)
-  metaTitle       String?
-  metaDescription String?
-  articleCount    Int        @default(0)
-  viewCount       Int        @default(0)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  createdBy       String?
-  articles        Article[]
-  creator         User?      @relation(fields: [createdBy], references: [id])
-  parent          Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  children        Category[] @relation("CategoryTree")
-
-  @@index([slug])
-  @@index([parentId])
-  @@index([isActive])
-}
-
-model Governorate {
-  id           String    @id @default(cuid())
-  name         String    @unique
-  nameEn       String?
-  nameLocal    String?
-  capital      String?
-  capitalEn    String?
-  svgPath      String?
-  coordinates  Json?
-  population   Int?
-  area         Float?
-  image        String?
-  flag         String?
-  articleCount Int       @default(0)
-  viewCount    Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  articles     Article[]
-
-  @@index([name])
+  @@index([action])
+  @@index([createdAt])
+  @@index([userId])
 }
 
 model Article {
-  id               String            @id @default(cuid())
-  title            String
-  titleEn          String?
-  slug             String            @unique
-  excerpt          String?
-  excerptEn        String?
-  status           ArticleStatus     @default(DRAFT)
-  categoryId       String
-  governorateId    String?
-  authorId         String
-  reviewedBy       String?
-  reviewedAt       DateTime?
-  reviewNotes      String?
-  isFeatured       Boolean           @default(false)
-  featuredAt       DateTime?
-  metaTitle        String?
-  metaDescription  String?
-  keywords         String?
-  viewCount        Int               @default(0)
-  likeCount        Int               @default(0)
-  commentCount     Int               @default(0)
-  bookmarkCount    Int               @default(0)
-  primaryLang      String            @default("ar")
-  publishedAt      DateTime?
-  deletedAt        DateTime?         // Soft delete - 30 day grace period
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  content          Json
-  contentEn        Json?
-  featuredImage    String?
-  featuredImageAlt String?
-  author           User              @relation("ArticleAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  category         Category          @relation(fields: [categoryId], references: [id])
-  governorate      Governorate?      @relation(fields: [governorateId], references: [id])
-  reviewer         User?             @relation("ArticleReviewer", fields: [reviewedBy], references: [id])
-  bookmarks        ArticleBookmark[]
-  citations        ArticleCitation[]
-  likes            ArticleLike[]
-  links            ArticleLink[]     @relation("SourceLinks")
-  linkedFrom       ArticleLink[]     @relation("TargetLinks")
-  media            ArticleMedia[]
-  reviews          ArticleReview[]
-  tags             ArticleTag[]
-  versions         ArticleVersion[]
-  comments         Comment[]
-  termIndexes      TermIndex[]
-  termReferences   TermReference[]
+  id                                        String            @id
+  title                                     String
+  titleEn                                   String?
+  slug                                      String            @unique
+  excerpt                                   String?
+  excerptEn                                 String?
+  status                                    ArticleStatus     @default(DRAFT)
+  categoryId                                String
+  governorateId                             String?
+  authorId                                  String
+  reviewedBy                                String?
+  reviewedAt                                DateTime?
+  reviewNotes                               String?
+  isFeatured                                Boolean           @default(false)
+  featuredAt                                DateTime?
+  metaTitle                                 String?
+  metaDescription                           String?
+  keywords                                  String?
+  viewCount                                 Int               @default(0)
+  likeCount                                 Int               @default(0)
+  commentCount                              Int               @default(0)
+  bookmarkCount                             Int               @default(0)
+  primaryLang                               String            @default("ar")
+  publishedAt                               DateTime?
+  createdAt                                 DateTime          @default(now())
+  updatedAt                                 DateTime
+  content                                   Json
+  contentEn                                 Json?
+  featuredImage                             String?
+  featuredImageAlt                          String?
+  deletedAt                                 DateTime?
+  User_Article_authorIdToUser               User              @relation("Article_authorIdToUser", fields: [authorId], references: [id], onDelete: Cascade)
+  Category                                  Category          @relation(fields: [categoryId], references: [id])
+  Governorate                               Governorate?      @relation(fields: [governorateId], references: [id])
+  User_Article_reviewedByToUser             User?             @relation("Article_reviewedByToUser", fields: [reviewedBy], references: [id])
+  ArticleBookmark                           ArticleBookmark[]
+  ArticleCitation                           ArticleCitation[]
+  ArticleLike                               ArticleLike[]
+  ArticleLink_ArticleLink_sourceIdToArticle ArticleLink[]     @relation("ArticleLink_sourceIdToArticle")
+  ArticleLink_ArticleLink_targetIdToArticle ArticleLink[]     @relation("ArticleLink_targetIdToArticle")
+  ArticleMedia                              ArticleMedia[]
+  ArticleReview                             ArticleReview[]
+  ArticleTag                                ArticleTag[]
+  ArticleVersion                            ArticleVersion[]
+  Comment                                   Comment[]
+  TermIndex                                 TermIndex[]
+  TermReference                             TermReference[]
 
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([createdAt])
+  @@index([governorateId])
   @@index([slug])
   @@index([status])
-  @@index([categoryId])
-  @@index([authorId])
-  @@index([governorateId])
-  @@index([createdAt])
   @@index([viewCount])
 }
 
+model ArticleBookmark {
+  id        String   @id
+  articleId String
+  userId    String
+  createdAt DateTime @default(now())
+  Article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, userId])
+  @@index([userId])
+}
+
+model ArticleCitation {
+  id          String   @id
+  articleId   String
+  title       String
+  url         String?
+  author      String?
+  publisher   String?
+  publishDate String?
+  pageNumbers String?
+  isbn        String?
+  doi         String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  Article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+}
+
+model ArticleLike {
+  id        String   @id
+  articleId String
+  userId    String
+  createdAt DateTime @default(now())
+  Article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, userId])
+  @@index([articleId])
+  @@index([userId])
+}
+
+model ArticleLink {
+  id                                    String   @id
+  sourceId                              String
+  targetId                              String
+  anchorText                            String
+  position                              Int
+  autoLinked                            Boolean  @default(false)
+  termId                                String?
+  createdAt                             DateTime @default(now())
+  Article_ArticleLink_sourceIdToArticle Article  @relation("ArticleLink_sourceIdToArticle", fields: [sourceId], references: [id], onDelete: Cascade)
+  Article_ArticleLink_targetIdToArticle Article  @relation("ArticleLink_targetIdToArticle", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, targetId, position])
+  @@index([sourceId])
+  @@index([targetId])
+}
+
 model ArticleMedia {
-  id          String    @id @default(cuid())
+  id          String    @id
   articleId   String
   url         String
   thumbnail   String?
@@ -198,98 +162,33 @@ model ArticleMedia {
   size        Int?
   videoId     String?
   type        MediaType
-  article     Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  Article     Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
   @@index([articleId])
   @@index([type])
 }
 
-model ArticleLink {
-  id         String   @id @default(cuid())
-  sourceId   String
-  targetId   String
-  anchorText String
-  position   Int
-  autoLinked Boolean  @default(false)
-  termId     String?
-  createdAt  DateTime @default(now())
-  source     Article  @relation("SourceLinks", fields: [sourceId], references: [id], onDelete: Cascade)
-  target     Article  @relation("TargetLinks", fields: [targetId], references: [id], onDelete: Cascade)
-
-  @@unique([sourceId, targetId, position])
-  @@index([sourceId])
-  @@index([targetId])
-}
-
-model TermIndex {
-  id         String          @id @default(cuid())
-  term       String
-  aliases    String[]
+model ArticleReview {
+  id         String        @id
   articleId  String
-  type       String
-  priority   Int             @default(1)
-  isActive   Boolean         @default(true)
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  article    Article         @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  references TermReference[]
-
-  @@unique([term, articleId])
-  @@index([term])
-  @@index([isActive])
-}
-
-model TermReference {
-  id        String    @id @default(cuid())
-  termId    String
-  articleId String
-  position  Int
-  isLinked  Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  article   Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  term      TermIndex @relation(fields: [termId], references: [id], onDelete: Cascade)
-
-  @@unique([termId, articleId, position])
-  @@index([termId])
-  @@index([articleId])
-}
-
-model ArticleCitation {
-  id          String   @id @default(cuid())
-  articleId   String
-  title       String
-  url         String?
-  author      String?
-  publisher   String?
-  publishDate String?
-  pageNumbers String?
-  isbn        String?
-  doi         String?
-  position    Int      @default(0)
-  createdAt   DateTime @default(now())
-  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  reviewerId String
+  status     ArticleStatus
+  notes      String?
+  changes    String?
+  reviewedAt DateTime      @default(now())
+  Article    Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  User       User          @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
 
   @@index([articleId])
-}
-
-model Tag {
-  id           String       @id @default(cuid())
-  name         String       @unique
-  nameEn       String?
-  slug         String       @unique
-  articleCount Int          @default(0)
-  createdAt    DateTime     @default(now())
-  articles     ArticleTag[]
-
-  @@index([slug])
+  @@index([reviewerId])
 }
 
 model ArticleTag {
-  id        String  @id @default(cuid())
+  id        String  @id
   articleId String
   tagId     String
-  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  Article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  Tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@unique([articleId, tagId])
   @@index([articleId])
@@ -297,7 +196,7 @@ model ArticleTag {
 }
 
 model ArticleVersion {
-  id         String   @id @default(cuid())
+  id         String   @id
   articleId  String
   version    Int
   title      String
@@ -305,119 +204,132 @@ model ArticleVersion {
   editedBy   String
   editedAt   DateTime @default(now())
   content    Json
-  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  editor     User     @relation(fields: [editedBy], references: [id], onDelete: Cascade)
+  Article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  User       User     @relation(fields: [editedBy], references: [id], onDelete: Cascade)
 
   @@unique([articleId, version])
   @@index([articleId])
 }
 
-model ArticleReview {
-  id         String        @id @default(cuid())
-  articleId  String
-  reviewerId String
-  status     ArticleStatus
-  notes      String?
-  changes    String?
-  reviewedAt DateTime      @default(now())
-  article    Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  reviewer   User          @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+model Category {
+  id              String     @id
+  name            String
+  nameEn          String?
+  slug            String     @unique
+  description     String?
+  descriptionEn   String?
+  icon            String?
+  image           String?
+  parentId        String?
+  order           Int        @default(0)
+  isActive        Boolean    @default(true)
+  metaTitle       String?
+  metaDescription String?
+  articleCount    Int        @default(0)
+  viewCount       Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime
+  createdBy       String?
+  Article         Article[]
+  User            User?      @relation(fields: [createdBy], references: [id])
+  Category        Category?  @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_Category  Category[] @relation("CategoryToCategory")
 
-  @@index([articleId])
-  @@index([reviewerId])
-}
-
-model ArticleLike {
-  id        String   @id @default(cuid())
-  articleId String
-  userId    String
-  createdAt DateTime @default(now())
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([articleId, userId])
-  @@index([articleId])
-  @@index([userId])
-}
-
-model ArticleBookmark {
-  id        String   @id @default(cuid())
-  articleId String
-  userId    String
-  createdAt DateTime @default(now())
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([articleId, userId])
-  @@index([userId])
+  @@index([isActive])
+  @@index([parentId])
+  @@index([slug])
 }
 
 model Comment {
-  id        String        @id @default(cuid())
-  articleId String
-  userId    String
-  parentId  String?
-  content   String
-  isEdited  Boolean       @default(false)
-  isHidden  Boolean       @default(false)
-  likeCount Int           @default(0)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  article   Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   Comment[]     @relation("CommentReplies")
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes     CommentLike[]
+  id            String        @id
+  articleId     String
+  userId        String
+  parentId      String?
+  content       String
+  isEdited      Boolean       @default(false)
+  isHidden      Boolean       @default(false)
+  likeCount     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime
+  Article       Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  Comment       Comment?      @relation("CommentToComment", fields: [parentId], references: [id], onDelete: Cascade)
+  other_Comment Comment[]     @relation("CommentToComment")
+  User          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  CommentLike   CommentLike[]
 
   @@index([articleId])
-  @@index([userId])
   @@index([parentId])
+  @@index([userId])
 }
 
 model CommentLike {
-  id        String   @id @default(cuid())
+  id        String   @id
   commentId String
   userId    String
   createdAt DateTime @default(now())
-  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([commentId, userId])
   @@index([commentId])
 }
 
-model UserBadge {
-  id        String    @id @default(cuid())
-  userId    String
-  badgeType BadgeType
-  earnedAt  DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Follow {
+  id                            String   @id
+  followerId                    String
+  followingId                   String
+  createdAt                     DateTime @default(now())
+  User_Follow_followerIdToUser  User     @relation("Follow_followerIdToUser", fields: [followerId], references: [id], onDelete: Cascade)
+  User_Follow_followingIdToUser User     @relation("Follow_followingIdToUser", fields: [followingId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, badgeType])
-  @@index([userId])
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model Governorate {
+  id           String    @id
+  name         String    @unique
+  nameEn       String?
+  nameLocal    String?
+  capital      String?
+  capitalEn    String?
+  svgPath      String?
+  coordinates  Json?
+  population   Int?
+  area         Float?
+  image        String?
+  flag         String?
+  articleCount Int       @default(0)
+  viewCount    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+  Article      Article[]
+
+  @@index([name])
 }
 
 model Message {
-  id         String    @id @default(cuid())
-  senderId   String
-  receiverId String
-  subject    String?
-  content    String
-  isRead     Boolean   @default(false)
-  readAt     DateTime?
-  isArchived Boolean   @default(false)
-  isDeleted  Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-  receiver   User      @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
-  sender     User      @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  id                            String    @id
+  senderId                      String
+  receiverId                    String
+  subject                       String?
+  content                       String
+  isRead                        Boolean   @default(false)
+  readAt                        DateTime?
+  isArchived                    Boolean   @default(false)
+  isDeleted                     Boolean   @default(false)
+  createdAt                     DateTime  @default(now())
+  User_Message_receiverIdToUser User      @relation("Message_receiverIdToUser", fields: [receiverId], references: [id], onDelete: Cascade)
+  User_Message_senderIdToUser   User      @relation("Message_senderIdToUser", fields: [senderId], references: [id], onDelete: Cascade)
 
-  @@index([senderId])
-  @@index([receiverId])
   @@index([createdAt])
+  @@index([receiverId])
+  @@index([senderId])
 }
 
 model Notification {
-  id        String           @id @default(cuid())
+  id        String           @id
   userId    String
   type      NotificationType
   title     String
@@ -426,15 +338,15 @@ model Notification {
   isRead    Boolean          @default(false)
   readAt    DateTime?
   createdAt DateTime         @default(now())
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  User      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([isRead])
   @@index([createdAt])
+  @@index([isRead])
+  @@index([userId])
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id
   userId       String
   sessionToken String   @unique
   expiresAt    DateTime
@@ -443,8 +355,142 @@ model Session {
   @@index([sessionToken])
 }
 
+model Setting {
+  id          String   @id
+  key         String   @unique
+  value       String
+  type        String   @default("text")
+  description String?
+  group       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([group])
+  @@index([key])
+}
+
+model Tag {
+  id           String       @id
+  name         String       @unique
+  nameEn       String?
+  slug         String       @unique
+  articleCount Int          @default(0)
+  createdAt    DateTime     @default(now())
+  ArticleTag   ArticleTag[]
+
+  @@index([slug])
+}
+
+model TermIndex {
+  id            String          @id
+  term          String
+  aliases       String[]
+  articleId     String
+  type          String
+  priority      Int             @default(1)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  Article       Article         @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  TermReference TermReference[]
+
+  @@unique([term, articleId])
+  @@index([isActive])
+  @@index([term])
+}
+
+model TermReference {
+  id        String    @id
+  termId    String
+  articleId String
+  position  Int
+  isLinked  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  Article   Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  TermIndex TermIndex @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@unique([termId, articleId, position])
+  @@index([articleId])
+  @@index([termId])
+}
+
+model User {
+  id                               String            @id
+  email                            String            @unique
+  username                         String?           @unique
+  name                             String?
+  image                            String?
+  coverImage                       String?
+  bio                              String?
+  location                         String?
+  website                          String?
+  socialLinks                      Json?
+  password                         String?
+  phone                            String?
+  points                           Int               @default(0)
+  isVerified                       Boolean           @default(false)
+  isActive                         Boolean           @default(true)
+  isBanned                         Boolean           @default(false)
+  googleId                         String?           @unique
+  facebookId                       String?           @unique
+  preferredLang                    String            @default("ar")
+  settings                         Json?
+  emailVerifiedAt                  DateTime?
+  lastLoginAt                      DateTime?
+  createdAt                        DateTime          @default(now())
+  updatedAt                        DateTime
+  deletedAt                        DateTime?
+  role                             String          @default("MEMBER")
+  Article_Article_authorIdToUser   Article[]         @relation("Article_authorIdToUser")
+  Article_Article_reviewedByToUser Article[]         @relation("Article_reviewedByToUser")
+  ArticleBookmark                  ArticleBookmark[]
+  ArticleLike                      ArticleLike[]
+  ArticleReview                    ArticleReview[]
+  ArticleVersion                   ArticleVersion[]
+  Category                         Category[]
+  Comment                          Comment[]
+  CommentLike                      CommentLike[]
+  Follow_Follow_followerIdToUser   Follow[]          @relation("Follow_followerIdToUser")
+  Follow_Follow_followingIdToUser  Follow[]          @relation("Follow_followingIdToUser")
+  Message_Message_receiverIdToUser Message[]         @relation("Message_receiverIdToUser")
+  Message_Message_senderIdToUser   Message[]         @relation("Message_senderIdToUser")
+  Notification                     Notification[]
+  UserBadge                        UserBadge[]
+
+  @@index([email])
+  @@index([isActive])
+  @@index([role])
+}
+
+model UserBadge {
+  id        String    @id
+  userId    String
+  badgeType BadgeType
+  earnedAt  DateTime  @default(now())
+  User      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeType])
+  @@index([userId])
+}
+
+model VerificationRequest {
+  id         String    @id
+  userId     String    @unique
+  reason     String
+  documents  Json?
+  status     String    @default("PENDING")
+  reviewNote String?
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+
+  @@index([status])
+  @@index([userId])
+}
+
 model VerificationToken {
-  id        String   @id @default(cuid())
+  id        String   @id
   email     String
   token     String   @unique
   type      String
@@ -455,66 +501,23 @@ model VerificationToken {
   @@index([token])
 }
 
-model Setting {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  value       String
-  type        String   @default("text")
-  description String?
-  group       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([key])
-  @@index([group])
-}
-
-model VerificationRequest {
-  id         String    @id @default(cuid())
-  userId     String    @unique
-  reason     String
-  documents  Json?
-  status     String    @default("PENDING")
-  reviewNote String?
-  reviewedBy String?
-  reviewedAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  @@index([userId])
-  @@index([status])
-}
-
-model ActivityLog {
-  id         String   @id @default(cuid())
-  userId     String
-  action     String
-  entityType String?
-  entityId   String?
-  ipAddress  String?
-  userAgent  String?
-  metadata   Json?
-  createdAt  DateTime @default(now())
-
-  @@index([userId])
-  @@index([action])
-  @@index([createdAt])
-}
-
-// Flexible Role System - Easily extensible for future roles (e.g., FACT_CHECKER)
-enum Role {
-  ADMIN      // Full system access
-  MODERATOR  // Content moderation, user management
-  EDITOR     // Content editing, article approval
-  MEMBER     // Basic user - default role
-}
-
 enum ArticleStatus {
   DRAFT
   PENDING
   APPROVED
   REJECTED
   ARCHIVED
+}
+
+enum BadgeType {
+  CONTRIBUTOR
+  ACTIVE_WRITER
+  EXPERT_WRITER
+  VERIFIED_AUTHOR
+  TOP_CONTRIBUTOR
+  PIONEER
+  REVIEWER
+  SUPERVISOR_BADGE
 }
 
 enum MediaType {
@@ -535,15 +538,4 @@ enum NotificationType {
   POINTS_EARNED
   CATEGORY_APPROVED
   WELCOME
-}
-
-enum BadgeType {
-  CONTRIBUTOR
-  ACTIVE_WRITER
-  EXPERT_WRITER
-  VERIFIED_AUTHOR
-  TOP_CONTRIBUTOR
-  PIONEER
-  REVIEWER
-  SUPERVISOR_BADGE
 }

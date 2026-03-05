@@ -18,6 +18,9 @@ import { ar, enUS } from 'date-fns/locale'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Force dynamic rendering - uses client-side auth
+export const dynamic = 'force-dynamic'
+
 interface Article {
   id: string
   title: string

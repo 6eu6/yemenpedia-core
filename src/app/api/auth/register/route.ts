@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hash } from 'bcryptjs'
 import { z } from 'zod'
+import { checkRateLimit, getClientIP, RATE_LIMITS } from '@/lib/rate-limiter'
 
 const registerSchema = z.object({
   name: z.string().min(2, 'الاسم يجب أن يكون حرفين على الأقل'),
@@ -15,6 +16,19 @@ const registerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check - 3 accounts per hour per IP
+    const clientIP = getClientIP(request)
+    const rateLimitKey = `register:${clientIP}`
+    const rateCheck = checkRateLimit(rateLimitKey, RATE_LIMITS.REGISTER)
+    
+    if (!rateCheck.allowed) {
+      const resetMinutes = Math.ceil((rateCheck.resetAt - Date.now()) / 60000)
+      return NextResponse.json(
+        { error: `تم تجاوز عدد الحسابات المسموح بها. يرجى المحاولة بعد ${resetMinutes} دقيقة` },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
     
     // Validate input
@@ -54,7 +68,7 @@ export async function POST(request: NextRequest) {
         username: validatedData.username,
         email: validatedData.email,
         password: hashedPassword,
-        role: 'WRITER',
+        role: 'MEMBER',
         isVerified: false,
         points: 0
       }
@@ -100,7 +114,6 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    console.error('Registration error:', error)
     return NextResponse.json(
       { error: 'حدث خطأ أثناء إنشاء الحساب' },
       { status: 500 }

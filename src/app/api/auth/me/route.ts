@@ -66,7 +66,6 @@ export async function GET(request: NextRequest) {
     })
     
   } catch (error) {
-    console.error('Get session error:', error)
     return NextResponse.json(
       { user: null, authenticated: false },
       { status: 200 }

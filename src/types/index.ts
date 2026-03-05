@@ -1,17 +1,38 @@
 // =============================================
 // Yemenpedia - Type Definitions
 // =============================================
+// IMPORTANT: These types must align with Prisma schema exactly
 
-// User Roles
-export type UserRole = 'ADMIN' | 'VERIFIER' | 'SUPERVISOR' | 'WRITER' | 'VISITOR'
+// Import Role from config instead of Prisma (for flexibility)
+import type { RoleName } from '@/config/roles.config'
 
-// Article Status
+// Re-export Prisma types for type safety (excluding Role which is now a string)
+import type { 
+  ArticleStatus as PrismaArticleStatus,
+  MediaType as PrismaMediaType,
+  NotificationType as PrismaNotificationType,
+  BadgeType as PrismaBadgeType
+} from '@prisma/client'
+
+// Re-export types
+export type { 
+  RoleName as Role,
+  PrismaArticleStatus,
+  PrismaMediaType,
+  PrismaNotificationType,
+  PrismaBadgeType
+}
+
+// Re-export from config
+export type { RoleName } from '@/config/roles.config'
+
+// Article Status - matches Prisma enum exactly
 export type ArticleStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'ARCHIVED'
 
-// Category Request Status
-export type CategoryRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+// Media Type - matches Prisma enum exactly
+export type MediaType = 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'MAP'
 
-// Notification Types
+// Notification Types - matches Prisma enum exactly
 export type NotificationType = 
   | 'ARTICLE_REVIEWED' 
   | 'ARTICLE_APPROVED' 
@@ -23,7 +44,7 @@ export type NotificationType =
   | 'CATEGORY_APPROVED' 
   | 'WELCOME'
 
-// Badge Types
+// Badge Types - matches Prisma enum exactly
 export type BadgeType = 
   | 'CONTRIBUTOR' 
   | 'ACTIVE_WRITER' 
@@ -40,23 +61,28 @@ export type BadgeType =
 export interface User {
   id: string
   email: string
+  username: string | null
   name: string | null
   image: string | null
+  coverImage: string | null
   bio: string | null
   phone: string | null
   location: string | null
   website: string | null
   socialLinks: SocialLinks | null
-  role: UserRole
+  password: string | null
+  role: string  // Role is now a string for flexibility
   points: number
   isVerified: boolean
   isActive: boolean
   isBanned: boolean
+  googleId: string | null
+  facebookId: string | null
   preferredLang: string
   settings: UserSettings | null
-  badges: UserBadge[]
   emailVerifiedAt: Date | null
   lastLoginAt: Date | null
+  deletedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -82,6 +108,7 @@ export interface UserSettings {
 
 export interface UserBadge {
   id: string
+  userId: string
   badgeType: BadgeType
   earnedAt: Date
 }
@@ -99,8 +126,6 @@ export interface Category {
   icon: string | null
   image: string | null
   parentId: string | null
-  parent: Category | null
-  children: Category[]
   order: number
   isActive: boolean
   metaTitle: string | null
@@ -145,7 +170,7 @@ export interface Coordinates {
 }
 
 // =============================================
-// Article Types
+// Article Types - ALIGNED WITH PRISMA SCHEMA
 // =============================================
 export interface Article {
   id: string
@@ -154,12 +179,12 @@ export interface Article {
   slug: string
   excerpt: string | null
   excerptEn: string | null
-  content: string
-  contentEn: string | null
+  content: Record<string, unknown>
+  contentEn: Record<string, unknown> | null
   status: ArticleStatus
   categoryId: string
   governorateId: string | null
-  districtId: string | null
+  // Note: districtId removed - not in Prisma schema
   authorId: string
   reviewedBy: string | null
   reviewedAt: Date | null
@@ -175,6 +200,9 @@ export interface Article {
   bookmarkCount: number
   primaryLang: string
   publishedAt: Date | null
+  featuredImage: string | null
+  featuredImageAlt: string | null
+  deletedAt: Date | null
   createdAt: Date
   updatedAt: Date
   
@@ -182,30 +210,42 @@ export interface Article {
   category: Category
   governorate: Governorate | null
   author: User
-  tags: ArticleTag[]
+  reviewer: User | null
+  tags: ArticleTagRelation[]
   media: ArticleMedia[]
-  sources: ArticleSource[]
+  citations: ArticleCitation[]
+  likes: ArticleLike[]
+  bookmarks: ArticleBookmark[]
+  reviews: ArticleReview[]
+  versions: ArticleVersion[]
+  comments: Comment[]
 }
 
+// ArticleMedia - ALIGNED WITH PRISMA SCHEMA
 export interface ArticleMedia {
   id: string
   articleId: string
-  type: 'image' | 'video' | 'document' | 'map'
   url: string
   thumbnail: string | null
-  caption: string | null
-  captionEn: string | null
-  alt: string | null
-  fileName: string | null
-  fileSize: number | null
   mimeType: string | null
   width: number | null
   height: number | null
+  caption: string | null
   order: number
   createdAt: Date
+  altText: string | null      // Was: alt
+  coordinates: Record<string, unknown> | null
+  duration: number | null
+  embedUrl: string | null
+  filename: string | null     // Was: fileName
+  publicId: string | null
+  size: number | null         // Was: fileSize
+  videoId: string | null
+  type: MediaType
 }
 
-export interface ArticleSource {
+// ArticleCitation - matches Prisma schema (was ArticleSource)
+export interface ArticleCitation {
   id: string
   articleId: string
   title: string
@@ -214,11 +254,18 @@ export interface ArticleSource {
   publisher: string | null
   publishDate: string | null
   pageNumbers: string | null
+  isbn: string | null
+  doi: string | null
+  position: number
   createdAt: Date
 }
 
-export interface ArticleTag {
+// Legacy alias for backwards compatibility
+export type ArticleSource = ArticleCitation
+
+export interface ArticleTagRelation {
   id: string
+  articleId: string
   tagId: string
   tag: Tag
 }
@@ -229,6 +276,42 @@ export interface Tag {
   nameEn: string | null
   slug: string
   articleCount: number
+  createdAt: Date
+}
+
+export interface ArticleLike {
+  id: string
+  articleId: string
+  userId: string
+  createdAt: Date
+}
+
+export interface ArticleBookmark {
+  id: string
+  articleId: string
+  userId: string
+  createdAt: Date
+}
+
+export interface ArticleReview {
+  id: string
+  articleId: string
+  reviewerId: string
+  status: ArticleStatus
+  notes: string | null
+  changes: string | null
+  reviewedAt: Date
+}
+
+export interface ArticleVersion {
+  id: string
+  articleId: string
+  version: number
+  title: string
+  changeNote: string | null
+  editedBy: string
+  editedAt: Date
+  content: Record<string, unknown>
 }
 
 // =============================================
@@ -339,18 +422,17 @@ export interface DashboardStats {
   viewsThisMonth: number
   topCategories: { name: string; count: number }[]
   topGovernorates: { name: string; count: number }[]
-  recentActivity: ActivityLog[]
+  recentActivity: ActivityLogEntry[]
 }
 
-export interface ActivityLog {
+export interface ActivityLogEntry {
   id: string
   userId: string
   action: string
-  entityType: string
+  entityType: string | null
   entityId: string | null
-  details: Record<string, unknown> | null
+  metadata: Record<string, unknown> | null
   ipAddress: string | null
   userAgent: string | null
   createdAt: Date
-  user: User
 }

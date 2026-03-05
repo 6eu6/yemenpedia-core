@@ -4,6 +4,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { FileText, FolderOpen, BookOpen, Landmark, Users, Theater, Palette, Coins, FlaskConical, Globe, Mountain, Utensils, Music, Gamepad2, Plane, Heart, Scale, Wrench, type LucideIcon } from 'lucide-react'
 
+// Force dynamic rendering - database access required
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'الأقسام | يمنبيديا',
   description: 'استكشف أقسام موسوعة اليمن الوطنية'

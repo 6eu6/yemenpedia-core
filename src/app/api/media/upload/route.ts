@@ -1,6 +1,8 @@
 /**
  * Media Upload API
  * 
+ * SECURITY: Requires authentication for all uploads
+ * 
  * Unified endpoint for all media uploads:
  * - POST /api/media/upload/image - Article images
  * - POST /api/media/upload/avatar - User avatars
@@ -12,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mediaService } from '@/services/media.service'
 import { db } from '@/lib/db'
+import { getAuthUser } from '@/lib/session'
 
 // ============================================
 // Image Upload
@@ -19,6 +22,15 @@ import { db } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Require authentication for all uploads
+    const auth = await getAuthUser(request)
+    if (!auth.success) {
+      return NextResponse.json(
+        { success: false, error: 'يجب تسجيل الدخول لرفع الملفات' },
+        { status: 401 }
+      )
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File
     const type = formData.get('type') as string // image, avatar, video, audio, document
@@ -29,9 +41,22 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json(
-        { success: false, error: 'No file provided' },
+        { success: false, error: 'لم يتم اختيار ملف' },
         { status: 400 }
       )
+    }
+
+    // SECURITY: For avatar uploads, only allow users to upload their own avatar
+    // Or admins can upload for anyone
+    if (type === 'avatar' && userId) {
+      const isOwnAvatar = userId === auth.user.id
+      const isAdminUser = auth.user.role === 'ADMIN'
+      if (!isOwnAvatar && !isAdminUser) {
+        return NextResponse.json(
+          { success: false, error: 'غير مصرح لك برفع صورة لهذا المستخدم' },
+          { status: 403 }
+        )
+      }
     }
 
     let result
@@ -44,6 +69,7 @@ export async function POST(request: NextRequest) {
         if (result.success && articleId) {
           await db.articleMedia.create({
             data: {
+              id: `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               articleId,
               type: 'IMAGE',
               url: result.url,
@@ -59,16 +85,12 @@ export async function POST(request: NextRequest) {
         break
 
       case 'avatar':
-        if (!userId) {
-          return NextResponse.json(
-            { success: false, error: 'userId required for avatar upload' },
-            { status: 400 }
-          )
-        }
+        // Use authenticated user's ID if not provided
+        const targetUserId = userId || auth.user.id
         
         // Get old avatar publicId for cleanup
         const user = await db.user.findUnique({
-          where: { id: userId },
+          where: { id: targetUserId },
           select: { image: true }
         })
         
@@ -76,12 +98,12 @@ export async function POST(request: NextRequest) {
           ? user.image.replace(`${process.env.R2_PUBLIC_URL}/`, '')
           : undefined
         
-        result = await mediaService.uploadAvatar(file, userId, oldAvatarId)
+        result = await mediaService.uploadAvatar(file, targetUserId, oldAvatarId)
         
         // Update user in database
         if (result.success) {
           await db.user.update({
-            where: { id: userId },
+            where: { id: targetUserId },
             data: { image: result.url }
           })
         }
@@ -94,6 +116,7 @@ export async function POST(request: NextRequest) {
         if (result.success && articleId) {
           await db.articleMedia.create({
             data: {
+              id: `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               articleId,
               type: 'VIDEO',
               url: result.url,
@@ -115,6 +138,7 @@ export async function POST(request: NextRequest) {
         if (result.success && articleId) {
           await db.articleMedia.create({
             data: {
+              id: `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               articleId,
               type: 'AUDIO',
               url: result.url,
@@ -133,6 +157,7 @@ export async function POST(request: NextRequest) {
         if (result.success && articleId) {
           await db.articleMedia.create({
             data: {
+              id: `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               articleId,
               type: 'DOCUMENT',
               url: result.url,
@@ -146,7 +171,7 @@ export async function POST(request: NextRequest) {
 
       default:
         return NextResponse.json(
-          { success: false, error: 'Invalid upload type' },
+          { success: false, error: 'نوع الرفع غير صالح' },
           { status: 400 }
         )
     }
@@ -163,9 +188,8 @@ export async function POST(request: NextRequest) {
       data: result
     })
   } catch (error) {
-    console.error('Upload error:', error)
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: 'حدث خطأ في الخادم' },
       { status: 500 }
     )
   }
@@ -177,12 +201,21 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // SECURITY: Require authentication
+    const auth = await getAuthUser(request)
+    if (!auth.success) {
+      return NextResponse.json(
+        { success: false, error: 'يجب تسجيل الدخول' },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const mediaId = searchParams.get('mediaId')
 
     if (!mediaId) {
       return NextResponse.json(
-        { success: false, error: 'mediaId required' },
+        { success: false, error: 'معرف الملف مطلوب' },
         { status: 400 }
       )
     }
@@ -191,9 +224,8 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success })
   } catch (error) {
-    console.error('Delete error:', error)
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: 'حدث خطأ في الخادم' },
       { status: 500 }
     )
   }

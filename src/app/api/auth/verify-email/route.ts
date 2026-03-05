@@ -131,7 +131,6 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
   } catch (error) {
-    console.error('Email verification error:', error)
     return NextResponse.json<VerifyEmailResponse>(
       {
         success: false,
@@ -212,11 +211,6 @@ export async function GET(request: NextRequest) {
     })
 
     // TODO: Send verification email
-    console.log(`
-      Resend verification email for ${email}:
-      Token: ${token}
-      Link: ${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/verify-email?token=${token}
-    `)
 
     return NextResponse.json<VerifyEmailResponse>(
       {
@@ -226,7 +220,6 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     )
   } catch (error) {
-    console.error('Resend verification error:', error)
     return NextResponse.json<VerifyEmailResponse>(
       {
         success: false,

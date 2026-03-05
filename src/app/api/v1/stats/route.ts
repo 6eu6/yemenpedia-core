@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { CONTRIBUTOR_ROLES } from '@/config/roles.config'
 
 // GOVERNANCE: Real statistics from database - NO FAKE NUMBERS
 // Article III, Section 3.1: Zero Placeholder Policy
@@ -19,7 +20,7 @@ export async function GET() {
         where: {
           isActive: true,
           isBanned: false,
-          role: { in: ['WRITER', 'TRANSLATOR', 'SUPERVISOR', 'VERIFIER', 'ADMIN'] }
+          role: { in: CONTRIBUTOR_ROLES }
         }
       }),
       db.category.count({
@@ -40,8 +41,6 @@ export async function GET() {
       }
     })
   } catch (error) {
-    console.error('Stats API Error:', error)
-
     // GOVERNANCE: Return zeros on error - NO FAKE NUMBERS
     return NextResponse.json({
       articles: 0,

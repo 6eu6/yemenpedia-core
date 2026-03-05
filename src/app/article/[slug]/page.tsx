@@ -2,6 +2,9 @@ import { db } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import { ArticleView } from './article-view'
 
+// Force dynamic rendering - database access required
+export const dynamic = 'force-dynamic'
+
 interface ArticlePageProps {
   params: Promise<{ slug: string }>
 }

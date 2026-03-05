@@ -18,6 +18,9 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Force dynamic rendering - uses client-side auth
+export const dynamic = 'force-dynamic'
+
 export default function ProfilePage() {
   const router = useRouter()
   const { toast } = useToast()

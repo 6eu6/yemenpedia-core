@@ -16,51 +16,27 @@
 import { PrismaClient } from '@prisma/client'
 
 const prismaClientSingleton = () => {
-  // Use DATABASE_URL from environment (with pgbouncer already in .env)
-  const databaseUrl = process.env.DATABASE_URL
+  const databaseUrl = process.env.SUPABASE_POOLER_URL
 
   if (!databaseUrl) {
     throw new Error(
-      '[CONFIGURATION ERROR] DATABASE_URL environment variable is not set. ' +
+      '[CONFIGURATION ERROR] SUPABASE_POOLER_URL environment variable is not set. ' +
       'Please check your .env file.'
     )
   }
 
   // STRICT GOVERNANCE ENFORCEMENT: IPv4 Pooler URL Required
-  // Pooler URLs contain: pooler.supabase.com
-  const isPoolerUrl = databaseUrl.includes('pooler.supabase.com') || databaseUrl.includes('pooler')
+  const isPoolerUrl = databaseUrl.includes('pooler.supabase.com')
 
-  // Check for direct Supabase URL (IPv6 - will fail)
-  const isDirectUrl = databaseUrl.includes('.supabase.co') && !databaseUrl.includes('pooler')
-
-  if (isDirectUrl) {
+  if (!isPoolerUrl) {
     throw new Error(
-      '[GOVERNANCE VIOLATION] Direct database URL detected! ' +
+      '[GOVERNANCE VIOLATION] Database URL must be a Supabase Pooler URL! ' +
       'IPv6 connections are NOT supported in sandbox environment. ' +
-      'MUST use DATABASE_URL with pooler.supabase.com endpoint. ' +
       'See STRICT_CONSTITUTION.md Article I, Section 1.1'
     )
   }
 
-  if (!isPoolerUrl && !databaseUrl.startsWith('file:')) {
-    console.warn(
-      '[WARNING] Database URL does not appear to be a Supabase Pooler URL. ' +
-      'Ensure you are using the correct IPv4-compatible endpoint.'
-    )
-  }
-
-  // Ensure pgbouncer parameter is set for pooler connections
-  let connectionUrl = databaseUrl
-  if (isPoolerUrl && !databaseUrl.includes('pgbouncer=')) {
-    connectionUrl = databaseUrl.includes('?')
-      ? `${databaseUrl}&pgbouncer=true`
-      : `${databaseUrl}?pgbouncer=true`
-  }
-
   return new PrismaClient({
-    datasources: {
-      db: { url: connectionUrl },
-    },
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   })
 }

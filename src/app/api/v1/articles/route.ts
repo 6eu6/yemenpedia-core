@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-// Public API - Articles List
+/**
+ * Public API - Articles List
+ * Excludes soft-deleted articles (deletedAt IS NULL)
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status') || 'APPROVED'
     const categoryId = searchParams.get('categoryId')
     const governorateId = searchParams.get('governorateId')
     const authorId = searchParams.get('authorId')
@@ -16,7 +18,11 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get('sort') || 'createdAt'
     const order = searchParams.get('order') || 'desc'
 
-    const where: any = { status: 'APPROVED' }
+    // Build where clause - always exclude soft-deleted
+    const where: Record<string, unknown> = { 
+      status: 'APPROVED',
+      deletedAt: null // Soft delete filter
+    }
     if (categoryId) where.categoryId = categoryId
     if (governorateId) where.governorateId = governorateId
     if (authorId) where.authorId = authorId
@@ -28,7 +34,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const orderBy: any = {}
+    const orderBy: Record<string, string> = {}
     orderBy[sort] = order
 
     const [articles, total] = await Promise.all([
@@ -83,8 +89,7 @@ export async function GET(request: NextRequest) {
         'Cache-Control': 'public, max-age=300'
       }
     })
-  } catch (error) {
-    console.error('API Error:', error)
+  } catch {
     return NextResponse.json(
       { success: false, error: 'حدث خطأ في الخادم' },
       { status: 500 }

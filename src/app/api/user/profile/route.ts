@@ -1,9 +1,23 @@
+/**
+ * User Profile API
+ * 
+ * SECURITY: Users can only update their own profile
+ * Admins can update any profile
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { profileUpdateSchema, profileQuerySchema } from '@/lib/validations'
+import { getAuthUser } from '@/lib/session'
+import { hasAdminPrivileges, type RoleName } from '@/config/roles.config'
 
 export async function PUT(request: NextRequest) {
   try {
+    // SECURITY: Authenticate user first
+    const auth = await getAuthUser(request)
+    if (!auth.success) {
+      return NextResponse.json({ error: auth.error }, { status: auth.statusCode })
+    }
+
     const body = await request.json()
     
     // Validate request body with Zod
@@ -20,6 +34,17 @@ export async function PUT(request: NextRequest) {
     }
     
     const { userId, ...updateData } = validation.data
+
+    // SECURITY: Check authorization - users can only update their own profile
+    // Admins can update any profile
+    const isOwnProfile = userId === auth.user.id
+    const isAdminUser = hasAdminPrivileges(auth.user.role)
+    
+    if (!isOwnProfile && !isAdminUser) {
+      return NextResponse.json({ 
+        error: 'غير مصرح لك بتعديل هذا الملف الشخصي' 
+      }, { status: 403 })
+    }
 
     // Verify user exists
     const user = await db.user.findUnique({ where: { id: userId } })
@@ -85,8 +110,6 @@ export async function PUT(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Update profile error:', error)
-    
     return NextResponse.json({ 
       error: 'حدث خطأ أثناء تحديث الملف',
       details: process.env.NODE_ENV === 'development' ? String(error) : undefined
@@ -141,7 +164,6 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Get profile error:', error)
     return NextResponse.json({ error: 'حدث خطأ أثناء جلب الملف الشخصي' }, { status: 500 })
   }
 }

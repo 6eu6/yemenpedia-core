@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Bell, Check, Loader2, FileText, User, Heart, MessageCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Force dynamic rendering - uses client-side auth
+export const dynamic = 'force-dynamic'
+
 interface Notification {
   id: string
   type: string

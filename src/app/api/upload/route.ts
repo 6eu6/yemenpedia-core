@@ -1,5 +1,16 @@
+/**
+ * File Upload API
+ * 
+ * SECURITY: Requires authentication for all uploads
+ * Rate limited to prevent storage abuse
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { uploadFile, validateStorageConfig } from '@/lib/storage'
+import { checkRateLimit, getClientIP, RATE_LIMITS } from '@/lib/rate-limiter'
+import { getAuthUser } from '@/lib/session'
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
 
 // Allowed file types
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -9,11 +20,27 @@ const MAX_VIDEO_SIZE = 500 * 1024 * 1024 // 500MB
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Require authentication
+    const auth = await getAuthUser(request)
+    if (!auth.success) {
+      return NextResponse.json({ 
+        error: 'يجب تسجيل الدخول لرفع الملفات' 
+      }, { status: 401 })
+    }
+
+    // RATE LIMIT: Prevent storage abuse (20 uploads per hour per IP)
+    const clientIP = getClientIP(request)
+    const rateLimit = checkRateLimit(`upload:${clientIP}`, RATE_LIMITS.FILE_UPLOAD)
+    
+    if (!rateLimit.allowed) {
+      const resetMinutes = Math.ceil((rateLimit.resetAt - Date.now()) / 60000)
+      return NextResponse.json({ 
+        error: `تم تجاوز حد رفع الملفات. يرجى المحاولة بعد ${resetMinutes} دقيقة` 
+      }, { status: 429 })
+    }
+
     // Validate storage configuration
     const configValidation = validateStorageConfig()
-    if (!configValidation.valid) {
-      console.warn('Storage config warnings:', configValidation.missing)
-    }
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
@@ -72,7 +99,6 @@ export async function POST(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Upload error:', error)
     return NextResponse.json({ error: 'حدث خطأ أثناء رفع الملف' }, { status: 500 })
   }
 }

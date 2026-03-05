@@ -66,7 +66,6 @@ export async function PUT(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues[0].message }, { status: 400 })
     }
-    console.error('Update username error:', error)
     return NextResponse.json({ 
       error: 'حدث خطأ أثناء تحديث اسم المستخدم',
       details: process.env.NODE_ENV === 'development' ? String(error) : undefined
